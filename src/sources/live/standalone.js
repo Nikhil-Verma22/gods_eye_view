@@ -99,7 +99,7 @@ export function createFlightSource({
         };
       }
 
-      // Static hosting fallback: OpenSky Network direct anonymous API
+      // Static hosting fallback 1: OpenSky Network direct anonymous API
       try {
         signal?.throwIfAborted();
         const openSkyUrl = params.size
@@ -111,24 +111,39 @@ export function createFlightSource({
           return {
             ...openSkySnapshot(directPayload, {
               source: 'OpenSky Network',
-              coverage: params.size ? 'regional view snapshot' : 'worldwide snapshot',
+              coverage: params.size
+                ? 'regional view snapshot'
+                : 'worldwide snapshot',
               now: now(),
             }),
             status: directRes.status,
           };
         }
-        if (directRes.status === 429) {
-          throw Object.assign(new Error('OpenSky rate limited (anonymous)'), {
-            status: 429,
-            source: 'OpenSky Network',
-            retryAfterMs: 30000,
-          });
+      } catch (e) {
+        if (e?.name === 'AbortError') throw e;
+      }
+
+      // Static hosting fallback 2: Bundled global flight snapshot
+      try {
+        signal?.throwIfAborted();
+        const baseUrl = import.meta.env?.BASE_URL || '/';
+        const snapshotUrl = `${baseUrl.replace(/\/$/, '')}/data/flights-snapshot.json`;
+        const staticRes = await fetchImpl(snapshotUrl, { signal });
+        if (staticRes.ok) {
+          const staticPayload = await staticRes.json();
+          return {
+            ...openSkySnapshot(staticPayload, {
+              source: 'OpenSky Network · Demo Snapshot',
+              coverage: 'worldwide demonstration snapshot',
+              now: now(),
+            }),
+            status: staticRes.status,
+          };
         }
       } catch (e) {
         if (e?.name === 'AbortError') throw e;
-        if (response) throw openSkyError(response);
-        throw e;
       }
+
       if (response) throw openSkyError(response);
       throw new Error('Flights feed unavailable');
     },
@@ -183,11 +198,22 @@ export function createMilitarySource({
           { signal },
           'Military aircraft',
         );
-        if (!response.ok) return new Set();
-        return readsbIdentities(payload);
+        if (response.ok) return readsbIdentities(payload);
       } catch {
-        return new Set();
+        // Fall back below
       }
+      try {
+        const baseUrl = import.meta.env?.BASE_URL || '/';
+        const snapshotUrl = `${baseUrl.replace(/\/$/, '')}/data/military-snapshot.json`;
+        const staticRes = await fetchImpl(snapshotUrl, { signal });
+        if (staticRes.ok) {
+          const staticPayload = await staticRes.json();
+          return readsbIdentities(staticPayload);
+        }
+      } catch {
+        /* best effort */
+      }
+      return new Set();
     },
     async getSnapshot(_query = {}, { signal } = {}) {
       let response = null;
@@ -202,27 +228,52 @@ export function createMilitarySource({
       } catch {
         // Proxy not available (static hosting)
       }
-      if (!response || !response.ok) {
-        throw Object.assign(
-          new Error('Military feed requires local dev server proxy (CORS restricted upstream)'),
-          {
-            status: response?.status ?? 404,
-            source: 'Military aircraft',
-            retryAfterMs: 60000,
-            retryable: false,
-          },
-        );
+      if (response && response.ok) {
+        const age = finite(header(response, 'x-feed-age-ms'));
+        return {
+          ...readsbSnapshot(payload, {
+            source: feedSource(response, 'Military aircraft'),
+            observedAtMs: now() - (age != null && age > 0 ? age : 0),
+            now: now(),
+            stale: header(response, 'x-feed-cache') === 'STALE',
+          }),
+          status: response.status,
+        };
       }
-      const age = finite(header(response, 'x-feed-age-ms'));
-      return {
-        ...readsbSnapshot(payload, {
-          source: feedSource(response, 'Military aircraft'),
-          observedAtMs: now() - (age != null && age > 0 ? age : 0),
-          now: now(),
-          stale: header(response, 'x-feed-cache') === 'STALE',
-        }),
-        status: response.status,
-      };
+
+      // Static hosting fallback: Bundled military flight snapshot
+      try {
+        signal?.throwIfAborted();
+        const baseUrl = import.meta.env?.BASE_URL || '/';
+        const snapshotUrl = `${baseUrl.replace(/\/$/, '')}/data/military-snapshot.json`;
+        const staticRes = await fetchImpl(snapshotUrl, { signal });
+        if (staticRes.ok) {
+          const staticPayload = await staticRes.json();
+          return {
+            ...readsbSnapshot(staticPayload, {
+              source: 'adsb.lol · Demo Snapshot',
+              observedAtMs: now(),
+              now: now(),
+              stale: false,
+            }),
+            status: staticRes.status,
+          };
+        }
+      } catch (e) {
+        if (e?.name === 'AbortError') throw e;
+      }
+
+      throw Object.assign(
+        new Error(
+          'Military feed requires local dev server proxy (CORS restricted upstream)',
+        ),
+        {
+          status: response?.status ?? 404,
+          source: 'Military aircraft',
+          retryAfterMs: 60000,
+          retryable: false,
+        },
+      );
     },
     // ADSB.lol does not expose a supported live-history endpoint. Omitting
     // optional getTrack keeps the tracking layer on its accumulated trail.

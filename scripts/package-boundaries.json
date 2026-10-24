@@ -3958,6 +3958,7 @@
       "src/data/militaryInstallationData.js",
       "src/layers/launches/source.js",
       "src/layers/perimeters/source.js",
+      "src/layers/perimeters/records.js",
       "src/layers/radio/source.js",
       "src/layers/radio/policy.js",
       "src/layers/satellites/source.js",

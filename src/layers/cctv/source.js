@@ -142,7 +142,8 @@ export function createCctvSource({
             const bytes = new Uint8Array(await directRes.arrayBuffer());
             const type = directRes.headers.get('content-type') || '';
             return {
-              contentType: type.split(';')[0].trim().toLowerCase() || 'image/jpeg',
+              contentType:
+                type.split(';')[0].trim().toLowerCase() || 'image/jpeg',
               bytes,
               sourceKind: 'upstream-image',
             };

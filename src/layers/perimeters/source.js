@@ -60,7 +60,8 @@ export function createWfigsPerimeterSource({
       // Static hosting / direct fallback: ArcGIS REST FeatureServer with CORS
       signal?.throwIfAborted();
       const directResponse = await fetchImpl(WFIGS_ARCGIS_URL, { signal });
-      if (!directResponse.ok) throw new Error(`WFIGS HTTP ${directResponse.status}`);
+      if (!directResponse.ok)
+        throw new Error(`WFIGS HTTP ${directResponse.status}`);
       const geojson = await directResponse.json();
       signal?.throwIfAborted();
       const rows = normalizeFirePerimeterSnapshot(geojson);
