@@ -44,7 +44,11 @@ jobs:
           CESIUM_ION_TOKEN: ${{ secrets.CESIUM_ION_TOKEN }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           MAPILLARY_CLIENT_TOKEN: ${{ secrets.MAPILLARY_CLIENT_TOKEN }}
-        run: npm run build
+        run: |
+          npm run build
+          if [ -d "./dist/gods_eye_view/cesium" ] && [ ! -d "./dist/cesium" ]; then
+            cp -r ./dist/gods_eye_view/cesium ./dist/cesium
+          fi
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
