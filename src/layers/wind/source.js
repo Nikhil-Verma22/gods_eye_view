@@ -32,7 +32,15 @@ export function createWindSource({
           cache: 'no-store',
           redirect: 'error',
         });
-        if (!response.ok) throw new Error(`Wind HTTP ${response.status}`);
+        if (!response.ok) {
+          if (response.status === 404) {
+            return {
+              unavailable: true,
+              reason: 'Wind requires local dev server proxy for GRIB2 decoding',
+            };
+          }
+          throw new Error(`Wind HTTP ${response.status}`);
+        }
         const manifest = JSON.parse(
           new TextDecoder().decode(
             await readWindBody(response, 16_384, active),

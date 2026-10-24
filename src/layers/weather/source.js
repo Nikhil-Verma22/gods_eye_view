@@ -126,11 +126,29 @@ export function createWeatherSource({
           `/api/weather/manifest?product=${product}`,
           { signal: controller.signal, cache: 'no-store', redirect: 'error' },
         );
-        if (!response.ok) throw new Error(`Weather HTTP ${response.status}`);
+        if (!response.ok) {
+          if (response.status === 404) {
+            return {
+              schemaVersion: 1,
+              product,
+              unavailable: true,
+              reason: 'Weather radar requires local dev server proxy',
+            };
+          }
+          throw new Error(`Weather HTTP ${response.status}`);
+        }
         return validateWeatherSnapshot(
           await readResponseJsonCapped(response, 16_384, controller.signal),
           product,
         );
+      } catch (err) {
+        if (err?.name === 'AbortError') throw err;
+        return {
+          schemaVersion: 1,
+          product,
+          unavailable: true,
+          reason: 'Weather radar unavailable on static hosting',
+        };
       } finally {
         clearTimeout(timer);
         signal?.removeEventListener('abort', abort);

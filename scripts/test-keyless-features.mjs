@@ -168,7 +168,7 @@ const KEYLESS_FEATURES = [
     category: 'Geological & Hazards',
     upstream: 'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query?where=1=1&returnCountOnly=true&f=json',
     appPath: 'src/layers/perimeters/source.js',
-    hasClientFallback: false,
+    hasClientFallback: true,
     async test() {
       const probe = await probeUrl(this.upstream);
       if (!probe.ok) return { pass: false, reason: `HTTP ${probe.status}: ${probe.statusText}` };
@@ -257,7 +257,7 @@ const KEYLESS_FEATURES = [
     category: 'Aviation & Tracking',
     upstream: 'https://opensky-network.org/api/states/all',
     appPath: 'src/sources/live/standalone.js',
-    hasClientFallback: false,
+    hasClientFallback: true,
     async test() {
       const probe = await probeUrl(this.upstream);
       if (!probe.ok) return { pass: false, reason: `HTTP ${probe.status}: ${probe.statusText}` };
@@ -314,7 +314,7 @@ const KEYLESS_FEATURES = [
     category: 'Communications & Signals',
     upstream: 'https://all.api.radio-browser.info/json/stations/topclick/10',
     appPath: 'src/layers/radio/source.js',
-    hasClientFallback: false,
+    hasClientFallback: true,
     async test() {
       const probe = await probeUrl(this.upstream);
       if (!probe.ok) return { pass: false, reason: `HTTP ${probe.status}: ${probe.statusText}` };
@@ -332,7 +332,7 @@ const KEYLESS_FEATURES = [
     category: 'Ground Intelligence & CCTV',
     upstream: 'https://data.austintexas.gov/resource/b4k4-adkb.json?$limit=5',
     appPath: 'src/layers/cctv/source.js',
-    hasClientFallback: false,
+    hasClientFallback: true,
     async test() {
       const probe = await probeUrl(this.upstream);
       if (!probe.ok) return { pass: false, reason: `HTTP ${probe.status}: ${probe.statusText}` };
@@ -368,7 +368,7 @@ const KEYLESS_FEATURES = [
     category: 'Transit & Mobility',
     upstream: 'https://toronto.publicbikesystem.net/ube/gbfs/v1/en/system_information',
     appPath: 'src/layers/bikeshare/source.js',
-    hasClientFallback: false,
+    hasClientFallback: true,
     async test() {
       const probe = await probeUrl(this.upstream);
       if (!probe.ok) return { pass: false, reason: `HTTP ${probe.status}: ${probe.statusText}` };

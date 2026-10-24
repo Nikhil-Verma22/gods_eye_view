@@ -71,51 +71,99 @@ export function createFlightSource({
         params.set('lat', query.latitude.toFixed(4));
         params.set('lon', query.longitude.toFixed(4));
       }
-      const { response, payload } = await readResponse(
-        fetchImpl,
-        `/api/flights${params.size ? '?' + params : ''}`,
-        { signal },
-        'Flights',
-      );
-      if (!response.ok) throw openSkyError(response);
-      return {
-        ...openSkySnapshot(payload, {
-          // A fallback provider names itself in X-Flight-Source.
-          source:
-            header(response, 'x-flight-source') ||
-            feedSource(response, 'Flights'),
-          coverage:
-            header(response, 'x-flight-coverage') ||
-            'worldwide upstream snapshot',
-          now: now(),
-        }),
-        status: response.status,
-      };
+      let response = null;
+      let payload = null;
+      try {
+        ({ response, payload } = await readResponse(
+          fetchImpl,
+          `/api/flights${params.size ? '?' + params : ''}`,
+          { signal },
+          'Flights',
+        ));
+      } catch (err) {
+        if (err?.name === 'AbortError') throw err;
+      }
+
+      if (response && response.ok) {
+        return {
+          ...openSkySnapshot(payload, {
+            source:
+              header(response, 'x-flight-source') ||
+              feedSource(response, 'Flights'),
+            coverage:
+              header(response, 'x-flight-coverage') ||
+              'worldwide upstream snapshot',
+            now: now(),
+          }),
+          status: response.status,
+        };
+      }
+
+      // Static hosting fallback: OpenSky Network direct anonymous API
+      try {
+        signal?.throwIfAborted();
+        const openSkyUrl = params.size
+          ? `https://opensky-network.org/api/states/all?lamin=${Math.max(-90, query.latitude - 5).toFixed(4)}&lomin=${Math.max(-180, query.longitude - 5).toFixed(4)}&lamax=${Math.min(90, query.latitude + 5).toFixed(4)}&lomax=${Math.min(180, query.longitude + 5).toFixed(4)}`
+          : 'https://opensky-network.org/api/states/all';
+        const directRes = await fetchImpl(openSkyUrl, { signal });
+        if (directRes.ok) {
+          const directPayload = await directRes.json();
+          return {
+            ...openSkySnapshot(directPayload, {
+              source: 'OpenSky Network',
+              coverage: params.size ? 'regional view snapshot' : 'worldwide snapshot',
+              now: now(),
+            }),
+            status: directRes.status,
+          };
+        }
+        if (directRes.status === 429) {
+          throw Object.assign(new Error('OpenSky rate limited (anonymous)'), {
+            status: 429,
+            source: 'OpenSky Network',
+            retryAfterMs: 30000,
+          });
+        }
+      } catch (e) {
+        if (e?.name === 'AbortError') throw e;
+        if (response) throw openSkyError(response);
+        throw e;
+      }
+      if (response) throw openSkyError(response);
+      throw new Error('Flights feed unavailable');
     },
     async getTrack(reference, { signal } = {}) {
-      const { response, payload } = await readResponse(
-        fetchImpl,
-        '/api/flights/track?icao24=' + encodeURIComponent(reference),
-        { signal },
-        'Flights',
-      );
-      if (!response.ok) throw httpError(response, 'Flights');
-      return {
-        records: normalizeAircraftTrack(payload?.path),
-        complete: false,
-      };
+      try {
+        const { response, payload } = await readResponse(
+          fetchImpl,
+          '/api/flights/track?icao24=' + encodeURIComponent(reference),
+          { signal },
+          'Flights',
+        );
+        if (!response.ok) throw httpError(response, 'Flights');
+        return {
+          records: normalizeAircraftTrack(payload?.path),
+          complete: false,
+        };
+      } catch {
+        return { records: [], complete: false };
+      }
     },
     async getEnrichment(query, { signal } = {}) {
       if (!['type', 'route'].includes(query.kind))
         throw new LiveSourceError('unsupported', 'Enrichment unavailable');
-      const { response, payload } = await readResponse(
-        fetchImpl,
-        `/api/adsbdb/${query.kind}/${encodeURIComponent(query.id)}`,
-        { signal },
-        'adsbdb',
-      );
-      if (!response.ok) throw httpError(response, 'adsbdb');
-      return payload;
+      try {
+        const { response, payload } = await readResponse(
+          fetchImpl,
+          `/api/adsbdb/${query.kind}/${encodeURIComponent(query.id)}`,
+          { signal },
+          'adsbdb',
+        );
+        if (!response.ok) throw httpError(response, 'adsbdb');
+        return payload;
+      } catch {
+        throw new LiveSourceError('unsupported', 'Enrichment unavailable');
+      }
     },
   };
 }
@@ -128,23 +176,43 @@ export function createMilitarySource({
     // i18n-ignore: feed source name, replaced by the provider from each snapshot and reported to AI tools
     label: 'Military aircraft',
     async getIdentities(_query = {}, { signal } = {}) {
-      const { response, payload } = await readResponse(
-        fetchImpl,
-        '/api/military',
-        { signal },
-        'Military aircraft',
-      );
-      if (!response.ok) throw httpError(response, 'Military aircraft');
-      return readsbIdentities(payload);
+      try {
+        const { response, payload } = await readResponse(
+          fetchImpl,
+          '/api/military',
+          { signal },
+          'Military aircraft',
+        );
+        if (!response.ok) return new Set();
+        return readsbIdentities(payload);
+      } catch {
+        return new Set();
+      }
     },
     async getSnapshot(_query = {}, { signal } = {}) {
-      const { response, payload } = await readResponse(
-        fetchImpl,
-        '/api/military',
-        { signal },
-        'Military aircraft',
-      );
-      if (!response.ok) throw httpError(response, 'Military aircraft');
+      let response = null;
+      let payload = null;
+      try {
+        ({ response, payload } = await readResponse(
+          fetchImpl,
+          '/api/military',
+          { signal },
+          'Military aircraft',
+        ));
+      } catch {
+        // Proxy not available (static hosting)
+      }
+      if (!response || !response.ok) {
+        throw Object.assign(
+          new Error('Military feed requires local dev server proxy (CORS restricted upstream)'),
+          {
+            status: response?.status ?? 404,
+            source: 'Military aircraft',
+            retryAfterMs: 60000,
+            retryable: false,
+          },
+        );
+      }
       const age = finite(header(response, 'x-feed-age-ms'));
       return {
         ...readsbSnapshot(payload, {
