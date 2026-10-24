@@ -17,7 +17,17 @@ export default defineConfig(({ command, mode }) => {
     if (process.env[key] === undefined) process.env[key] = value;
   }
   const tools = standaloneVoiceTools();
+  const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1];
+  const pagesBase = repoName ? `/${repoName}/` : '/gods_eye_view/';
+  let base =
+    process.env.BASE_URL ||
+    process.env.BASE_PATH ||
+    (process.env.GITHUB_PAGES ? pagesBase : undefined);
+  if (base && !base.endsWith('/')) {
+    base += '/';
+  }
   return createBrowserViteConfig({
+    base,
     plugins: [
       ...localProviderPlugins({ realtime: { tools }, gemini: { tools } }),
       localMcpPlugin(),

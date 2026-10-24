@@ -127,8 +127,10 @@ export function createBrowserViteConfig({
   port = 4173,
   allowedHosts = DEFAULT_ALLOWED_HOSTS,
   command,
+  base,
 } = {}) {
   return {
+    ...(base !== undefined ? { base } : {}),
     plugins: [
       // First, so every API response, including a Host refusal, carries them.
       apiResponseHeadersPlugin(),
