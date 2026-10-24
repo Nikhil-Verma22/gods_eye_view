@@ -326,13 +326,27 @@ export function createVesselSource({
         url.searchParams.set('lon', area.lon.toFixed(5));
         url.searchParams.set('radius_km', area.radiusKm.toFixed(1));
       }
-      const { response, payload } = await readResponse(
-        fetchImpl,
-        url.toString(),
-        { signal, cache: 'no-store' },
-        'Vessels',
-      );
-      if (!response.ok) {
+      let response = null;
+      let payload = null;
+      try {
+        ({ response, payload } = await readResponse(
+          fetchImpl,
+          url.toString(),
+          { signal, cache: 'no-store' },
+          'Vessels',
+        ));
+      } catch (err) {
+        if (err?.name === 'AbortError') throw err;
+      }
+      if (response && response.ok) {
+        return {
+          ...vesselSnapshot(payload, {
+            source: feedSource(response, 'Vessels'),
+          }),
+          status: response.status,
+        };
+      }
+      if (response && response.status !== 404) {
         const error = httpError(response, 'Vessels');
         const reasons = {
           'missing-key': 'AISSTREAM_API_KEY not set',
@@ -344,23 +358,53 @@ export function createVesselSource({
         error.message = reasons[payload?.status] || error.message;
         throw error;
       }
-      return {
-        ...vesselSnapshot(payload, { source: feedSource(response, 'Vessels') }),
-        status: response.status,
-      };
+
+      // Static hosting fallback: Bundled vessel snapshot
+      try {
+        signal?.throwIfAborted();
+        const baseUrl = import.meta.env?.BASE_URL || '/';
+        const snapshotUrl = `${baseUrl.replace(/\/$/, '')}/data/vessels-snapshot.json`;
+        const staticRes = await fetchImpl(snapshotUrl, { signal });
+        if (staticRes.ok) {
+          const staticPayload = await staticRes.json();
+          return {
+            ...vesselSnapshot(staticPayload, {
+              source: 'AISStream · Demo Snapshot',
+              coverage: 'worldwide demonstration snapshot',
+            }),
+            status: staticRes.status,
+          };
+        }
+      } catch (e) {
+        if (e?.name === 'AbortError') throw e;
+      }
+
+      if (response) throw httpError(response, 'Vessels');
+      throw new Error('Vessels feed unavailable');
     },
     async getTrack(reference, { signal } = {}) {
-      const { response, payload } = await readResponse(
-        fetchImpl,
-        '/api/vessels/track?mmsi=' + encodeURIComponent(reference),
-        { signal },
-        'Vessels',
-      );
-      if (!response.ok) throw httpError(response, 'Vessels');
-      return {
-        records: normalizeVesselTrack(payload?.samples),
-        complete: false,
-      };
+      let response = null;
+      let payload = null;
+      try {
+        ({ response, payload } = await readResponse(
+          fetchImpl,
+          '/api/vessels/track?mmsi=' + encodeURIComponent(reference),
+          { signal },
+          'Vessels',
+        ));
+      } catch (err) {
+        if (err?.name === 'AbortError') throw err;
+      }
+      if (response && response.ok) {
+        return {
+          records: normalizeVesselTrack(payload?.samples),
+          complete: false,
+        };
+      }
+      if (response && response.status !== 404) {
+        throw httpError(response, 'Vessels');
+      }
+      return { records: [], complete: false };
     },
   };
 }
