@@ -17,7 +17,7 @@ export function createBikeshareSource({
       } catch {
         // Proxy unavailable (static hosting)
       }
-      if (!response || !response.ok) {
+      if (!response || response.status === 404) {
         // Static hosting fallback: direct fetch from GBFS feed with CORS
         signal?.throwIfAborted();
         response = await fetchImpl(url.href, {

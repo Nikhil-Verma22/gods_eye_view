@@ -141,14 +141,6 @@ export function createWeatherSource({
           await readResponseJsonCapped(response, 16_384, controller.signal),
           product,
         );
-      } catch (err) {
-        if (err?.name === 'AbortError') throw err;
-        return {
-          schemaVersion: 1,
-          product,
-          unavailable: true,
-          reason: 'Weather radar unavailable on static hosting',
-        };
       } finally {
         clearTimeout(timer);
         signal?.removeEventListener('abort', abort);

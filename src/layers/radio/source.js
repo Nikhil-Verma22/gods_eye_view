@@ -116,6 +116,9 @@ export function createRadioSource({
         signal?.throwIfAborted();
         return body;
       }
+      if (response && response.status !== 404) {
+        throw new Error(`Radio directory returned ${response.status}`);
+      }
 
       // Static hosting fallback: direct fetch from Radio Browser public mirror
       signal?.throwIfAborted();
@@ -136,14 +139,22 @@ export function createRadioSource({
     async recordClick(id, { signal } = {}) {
       if (typeof id !== 'string' || !RADIO_UUID_RE.test(id))
         throw new Error('Invalid radio station id');
+      signal?.throwIfAborted();
+      let response;
       try {
-        signal?.throwIfAborted();
-        await fetchImpl(`/api/radio/click/${encodeURIComponent(id)}`, {
-          method: 'POST',
-          signal,
-        });
-      } catch {
-        // Best-effort click accounting
+        response = await fetchImpl(
+          `/api/radio/click/${encodeURIComponent(id)}`,
+          {
+            method: 'POST',
+            signal,
+          },
+        );
+      } catch (err) {
+        if (err?.name === 'AbortError') throw err;
+      }
+      signal?.throwIfAborted();
+      if (response && !response.ok && response.status !== 404) {
+        throw new Error(`Radio click returned ${response.status}`);
       }
     },
   };

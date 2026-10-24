@@ -53,6 +53,9 @@ export function createCctvSource({
         throw new Error('Malformed camera ' + key + ' snapshot');
       return payload;
     }
+    if (response && response.status !== 404) {
+      throw new Error('HTTP ' + response.status);
+    }
 
     // Static hosting fallback for CCTV sources
     if (path.includes('/sources')) {

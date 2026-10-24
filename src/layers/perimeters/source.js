@@ -56,6 +56,9 @@ export function createWfigsPerimeterSource({
           throw new Error(msg('Malformed perimeter snapshot'));
         return payload.rows;
       }
+      if (response && response.status !== 404) {
+        throw new Error(`WFIGS HTTP ${response.status}`);
+      }
 
       // Static hosting / direct fallback: ArcGIS REST FeatureServer with CORS
       signal?.throwIfAborted();

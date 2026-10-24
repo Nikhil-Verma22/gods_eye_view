@@ -99,6 +99,10 @@ export function createFlightSource({
         };
       }
 
+      if (response && response.status !== 404) {
+        throw openSkyError(response);
+      }
+
       // Static hosting fallback 1: OpenSky Network direct anonymous API
       try {
         signal?.throwIfAborted();
@@ -191,16 +195,23 @@ export function createMilitarySource({
     // i18n-ignore: feed source name, replaced by the provider from each snapshot and reported to AI tools
     label: 'Military aircraft',
     async getIdentities(_query = {}, { signal } = {}) {
+      let response = null;
+      let payload = null;
       try {
-        const { response, payload } = await readResponse(
+        ({ response, payload } = await readResponse(
           fetchImpl,
           '/api/military',
           { signal },
           'Military aircraft',
-        );
-        if (response.ok) return readsbIdentities(payload);
-      } catch {
-        // Fall back below
+        ));
+      } catch (err) {
+        if (err?.name === 'AbortError') throw err;
+      }
+      if (response && response.ok) {
+        return readsbIdentities(payload);
+      }
+      if (response && response.status !== 404) {
+        return new Set();
       }
       try {
         const baseUrl = import.meta.env?.BASE_URL || '/';
@@ -225,8 +236,8 @@ export function createMilitarySource({
           { signal },
           'Military aircraft',
         ));
-      } catch {
-        // Proxy not available (static hosting)
+      } catch (err) {
+        if (err?.name === 'AbortError') throw err;
       }
       if (response && response.ok) {
         const age = finite(header(response, 'x-feed-age-ms'));
@@ -239,6 +250,19 @@ export function createMilitarySource({
           }),
           status: response.status,
         };
+      }
+      if (response && response.status !== 404) {
+        throw Object.assign(
+          new Error(
+            'Military feed requires local dev server proxy (CORS restricted upstream)',
+          ),
+          {
+            status: response.status,
+            source: 'Military aircraft',
+            retryAfterMs: 60000,
+            retryable: false,
+          },
+        );
       }
 
       // Static hosting fallback: Bundled military flight snapshot
