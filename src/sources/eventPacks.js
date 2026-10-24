@@ -11,9 +11,16 @@ export function createEventPackSource({
       if (!EVENT_ID.test(id)) throw new TypeError(`Invalid event id: ${id}`);
       if (!cache.has(id)) {
         signal?.throwIfAborted();
-        const response = await fetchImpl(`/events/${id}/event.json`, {
-          signal,
-        });
+        const base =
+          (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) ||
+          '/';
+        const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+        const response = await fetchImpl(
+          `${normalizedBase}events/${id}/event.json`,
+          {
+            signal,
+          },
+        );
         if (!response.ok)
           throw new Error(`Event pack ${id} unavailable (${response.status})`);
         cache.set(id, await response.json());

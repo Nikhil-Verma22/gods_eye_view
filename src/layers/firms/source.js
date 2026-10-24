@@ -17,7 +17,10 @@ export function createFirmsSource({
       }
       signal?.throwIfAborted();
       if (!response.ok) {
-        if (response.status === 503 && payload?.error === 'no_key')
+        if (
+          response.status === 404 ||
+          (response.status === 503 && payload?.error === 'no_key')
+        )
           return { keyRequired: true };
         throw new Error(`FIRMS HTTP ${response.status}`);
       }
