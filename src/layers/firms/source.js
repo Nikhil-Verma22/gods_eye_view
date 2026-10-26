@@ -17,10 +17,21 @@ export function createFirmsSource({
       }
       signal?.throwIfAborted();
       if (!response.ok) {
-        if (
-          response.status === 404 ||
-          (response.status === 503 && payload?.error === 'no_key')
-        )
+        if (response.status === 404) {
+          try {
+            const baseUrl = import.meta.env?.BASE_URL || '/';
+            const snapshotUrl = `${baseUrl.replace(/\/$/, '')}/data/firms-snapshot.json`;
+            const staticRes = await fetchImpl(snapshotUrl, { signal });
+            if (staticRes.ok) {
+              const staticPayload = await staticRes.json();
+              if (Array.isArray(staticPayload?.fires)) return staticPayload;
+            }
+          } catch {
+            /* fall through to keyRequired */
+          }
+          return { keyRequired: true };
+        }
+        if (response.status === 503 && payload?.error === 'no_key')
           return { keyRequired: true };
         throw new Error(`FIRMS HTTP ${response.status}`);
       }

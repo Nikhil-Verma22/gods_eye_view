@@ -44,7 +44,11 @@ jobs:
           CESIUM_ION_TOKEN: ${{ secrets.CESIUM_ION_TOKEN }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           MAPILLARY_CLIENT_TOKEN: ${{ secrets.MAPILLARY_CLIENT_TOKEN }}
+          FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
         run: |
+          if [ -n "$FIRMS_MAP_KEY" ]; then
+            node scripts/generate-firms-snapshot.mjs || true
+          fi
           npm run build
           if [ -d "./dist/gods_eye_view/cesium" ] && [ ! -d "./dist/cesium" ]; then
             cp -r ./dist/gods_eye_view/cesium ./dist/cesium
